@@ -1,0 +1,36 @@
+﻿{
+	"author": {
+		"email": "Qriist+QristASR@gmail.com",
+		"name": "Qriist",
+		"website": ""
+	},
+	"bugs": {
+		"url": "https://github.com/Qriist/QristASR/issues"
+	},
+	"dependencies": {
+		"Cebolla/Timer": "^1.0.0",
+		"Chunjee/adash": "^v0.6.0",
+		"G33kDude/cJson": "^2.1.0",
+		"GroggyOtter/PeepAHK": "github:Qriist/PeepAHK@^v1.3.0 --main script\\Peep.v2.ahk",
+		"Qriist/LibQurl": "^v1.3.0",
+		"Qriist/Null": "github:Qriist/Null@^v1.0.0 --main Null.ahk",
+		"Qriist/libmagic": "github:Qriist/libmagic@^v0.80.0 --main Lib\\libmagic.ahk",
+		"SKAN/RunCMD": "aadeb56"
+	}
+	"description": "This is a thin wrapper for CrispASR to simplify programmatic interactions.",
+	"homepage": "",
+	"keywords": [
+		"TTS",
+		"STT",
+		"inference",
+		"speech"
+	],
+	"license": "",
+	"main": "QrispASR.ahk",
+	"name": "Qriist/QristASR",
+	"repository": {
+		"type": "github",
+		"url": "Qriist/QristASR"
+	},
+	"version": "v0.0.1"
+}
