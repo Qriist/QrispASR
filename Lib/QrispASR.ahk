@@ -73,6 +73,10 @@ class QrispASR {
     StartServer(serverObj?, serverUrl?) {
         serverObj ??= this.ConstructServerObject()
 
+        ;ensure voiceDir exists
+        if !DirExist(this.voiceDir)
+            DirCreate(this.voiceDir)
+
         ;build server cmd
         cmd := adash.join(serverObj["optArr"], " ")
 
