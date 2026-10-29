@@ -16,7 +16,7 @@
 		"Qriist/Null": "github:Qriist/Null@^v1.0.0 --main Null.ahk",
 		"Qriist/libmagic": "github:Qriist/libmagic@^v0.80.0 --main Lib\\libmagic.ahk",
 		"SKAN/RunCMD": "aadeb56"
-	}
+	},
 	"description": "This is a thin wrapper for CrispASR to simplify programmatic interactions.",
 	"homepage": "",
 	"keywords": [
@@ -32,5 +32,5 @@
 		"type": "github",
 		"url": "Qriist/QristASR"
 	},
-	"version": "v0.0.1"
+	"version": "v0.1.0"
 }

@@ -196,7 +196,7 @@ class QrispASR {
         this.curl.EasyCleanup(easy_handle)
         FileDelete(tempPath)
     }
-    TTS(serverObj, ttsObj, destination) {
+    TTS(serverObj, ttsObj, destination, toFlac := 1) {
         easy_handle := serverObj["easy_handle"]
 
         url := serverObj["url"] ":" serverObj["port"] "/v1/audio/speech"
@@ -207,8 +207,27 @@ class QrispASR {
 
         this.curl.Sync(easy_handle)
 
+        if toFlac {
+            SplitPath(destination, &FileName, &FileDir, &FileExt, &FileBase)
+            this.WavToFlac(destination, FileDir "\" FileBase ".flac", 1)
+        }
         ; MsgBox this.curl.GetLastHeaders(, easy_handle)
+
         return
+    }
+    WavToFlac(source, destination, deleteSource?) {
+        cmd := adash.join([
+            "ffmpeg",
+            "-y",
+            "-i " '"' source '"',
+            "-c:a flac",
+            "-compression_level 12",
+            "-lpc_type cholesky",
+            '"' destination '"'
+        ], " ")
+        RunWait(cmd, , "Hide")
+        if IsSet(deleteSource?)
+            FileDelete(source)
     }
     ConstructTtsObject(serverObj, extended?) {
         switch serverObj["backend"] {
