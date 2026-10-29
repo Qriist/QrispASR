@@ -1,0 +1,72 @@
+#Requires AutoHotkey v2.1-
+#include <Aris/Cebolla/Timer> ; Cebolla/Timer@v1.12.0
+#include <Aris/Chunjee/adash> ; Chunjee/adash@v0.6.0
+#include <Aris/G33kDude/cJson> ; G33kDude/cJson@2.1.0
+#include <Aris/GroggyOtter/PeepAHK> ; github:Qriist/PeepAHK@v1.3.0 --main script\Peep.v2.ahk
+#include <Aris/Qriist/libmagic> ; github:Qriist/libmagic@v0.80.2 --main Lib\libmagic.ahk
+#include <Aris/Qriist/LibQurl> ; Qriist/LibQurl@v1.3.0
+#include <Aris/Qriist/Null> ; github:Qriist/Null@v1.0.0 --main Null.ahk
+#include <Aris/SKAN/RunCMD> ; SKAN/RunCMD@aadeb56
+
+class QrispASR {
+    __New(path?) {
+        this.curl := LibQurl()
+        this.InstallCrisp(path?)
+    }
+    InstallCrisp(path := A_ScriptDir "\tools\CrispASR") {
+        if !DirExist(path)
+            DirCreate(path)
+
+        verMap := this.DetermineLatestCrisp()
+
+        if DirExist(path "\" verMap["version"]) {
+            this.crispVersion := verMap["version"]
+            this.crispPath := path "\" this.crispVersion "\crispasr.exe"
+            return
+        }
+
+        easy_handle := this.curl.EasyInit()
+        url := verMap["url"]
+        this.curl.SetOpt("URL", url, easy_handle)
+        zipfile := path "\" verMap["version"] ".zip"
+        this.curl.WriteToFile(zipfile, easy_handle)
+        this.curl.SimSync(easy_handle)
+        this.curl.Cleanup(easy_handle)
+
+        DirCreate(path "\temp")
+        DirCopy(zipfile, path "\temp", 1)
+        DirMove(path "\temp\crispasr-windows-x86_64-cuda", path "\" verMap["version"], 1)
+        DirDelete(path "\temp")
+        FileDelete(zipfile)
+
+        this.crispVersion := verMap["version"]
+        this.crispPath := path "\" this.crispVersion "\crispasr.exe"
+    }
+    DetermineLatestCrisp() {
+        retMap := Map()
+        easy_handle := this.curl.EasyInit()
+
+        url := "https://api.github.com/repos/CrispStrobe/CrispASR/releases/latest"
+        this.curl.SetOpt("URL", url, easy_handle)
+        this.curl.SetOpt("USERAGENT", "No.", easy_handle)
+        this.curl.Sync(easy_handle)
+
+        jsonObj := json.load(this.curl.GetLastBody(, easy_handle))
+        this.curl.EasyCleanup(easy_handle)
+
+        retMap["version"] := jsonObj["tag_name"]
+
+        ;find the windows cuda edition
+        name := "crispasr-windows-x86_64-cuda.zip"
+        for k, v in jsonObj["assets"] {
+            if v["name"] != name
+                continue
+            retMap["url"] := v["browser_download_url"]
+            break
+        }
+        return retMap
+    }
+    StartServer(server_path) {
+
+    }
+}
