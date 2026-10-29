@@ -124,7 +124,8 @@ class QrispASR {
             "url", url,
             "port", port,
             "voiceDir", voiceDir,
-            "optArr", optArr := []  ;for CLI construction
+            "optArr", optArr := [],  ;for CLI construction
+            "easy_handle", this.curl.EasyInit()
         )
 
         ;add backend-specific info
@@ -153,6 +154,10 @@ class QrispASR {
 
         return serverObj
     }
+    DeleteServerObject(serverObj) {
+        this.curl.EasyCleanup(serverObj["easy_handle"])
+        serverObj := unset
+    }
     SubmitVoice(serverObj, audioPath, audioName, transcriptPath?, overwrite?) {
         if !DirExist(this.voiceDir)
             DirCreate(this.voiceDir)
@@ -168,11 +173,9 @@ class QrispASR {
             "-af " '"' af '"',
             "-ar 24000",    ;auto-force to 24khz
             "-c:a pcm_s16le",
-            ; "-c:a pcm_s24le",
-            ; "-c:a pcm_s32le",
             '"' tempPath '"'
         ], " ")
-        RunWait(cmd, this.crispDir)
+        RunWait(cmd, this.crispDir, "Hide")
         ; msgbox A_Clipboard := cmd
         ;do the actual submit
         easy_handle := this.curl.EasyInit()
@@ -192,5 +195,63 @@ class QrispASR {
         this.curl.MimeCleanup(mime_handle)
         this.curl.EasyCleanup(easy_handle)
         FileDelete(tempPath)
+    }
+    TTS(serverObj, ttsObj, destination) {
+        easy_handle := serverObj["easy_handle"]
+
+        url := serverObj["url"] ":" serverObj["port"] "/v1/audio/speech"
+        this.curl.SetOpt("URL", url, easy_handle)
+
+        this.curl.SetPost(ttsObj, easy_handle)
+        this.curl.WriteToFile(destination, easy_handle)
+
+        this.curl.Sync(easy_handle)
+
+        ; MsgBox this.curl.GetLastHeaders(, easy_handle)
+        return
+    }
+    ConstructTtsObject(serverObj, extended?) {
+        switch serverObj["backend"] {
+            case "qwen3-tts-1.7b-base":
+                retObj := Map(
+                    "input", Null(),
+                    "model", serverObj["backend"],
+                    "voice", Null(),
+                    ; "instructions", "", ; VoiceDesign only
+                    "seed", 0,
+                    "temperature", (!IsSet(extended?) ? unset : 0.0),
+                    "max_new_tokens", (!IsSet(extended?) ? unset : 0),
+                    ; "max_speech_tokens", 0, ; MOSS-TTS only
+                    ; "min_speech_tokens", 0, ; MOSS-TTS only
+                    "frequency_penalty", (!IsSet(extended?) ? unset : 0.0),
+                    ; "top_p", 0.0, ; Backend-specific: TADA/Chatterbox
+                    ; "min_p", 0.0, ; Backend-specific sampling
+                    ; "top_k", 0, ; Honored by TADA
+                    ; "repetition_penalty", 1.0, ; TADA/Chatterbox
+                    ; "do_sample", true, ; Honored by TADA
+                    ; "num_candidates", 1, ; TADA only
+                    ; "num_steps", 10, ; TADA/Chatterbox/F5
+                    ; "cfg_scale", 1.0, ; TADA/Chatterbox/F5
+                    ; "noise_temp", 0.9, ; TADA only
+                    ; "noise_scale", 0.667, ; Piper only
+                    ; "noise_w", 0.8, ; Piper only
+                    ; "exaggeration", 0.5, ; Chatterbox only
+                    ; "speaker_id", 0, ; Piper only
+                    ; "phonemes", "", ; Kokoro/Piper only
+                    "pad_silence_ms", (!IsSet(extended?) ? unset : 0),
+                    "stream", JSON.False,
+                    ; "speed", (!IsSet(extended?) ? unset : 1.0),
+                    ; "duration", 0, ; OmniVoice only
+                    "response_format", "wav",
+                    "consent_attestation", "I have the speaker's consent",
+                    ; "ref_text", "", ; TADA cloning reference transcript
+                    "language", "English",
+                    ; "source_lang", "", ; CosyVoice3 only
+                    "speaker_identity", "synthetic",
+                    "spoken_disclaimer", JSON.False,
+                    "marking_attestation", (!IsSet(extended?) ? unset : "I will disclose this is AI-generated")
+                )
+        }
+        return retObj
     }
 }

@@ -13,3 +13,11 @@ crisp.SubmitVoice(serverObj,
     transcriptPath := A_ScriptDir "\sample voices\Piedmont.txt",
     1   ;allow overwrite
 )
+ttsObject := crisp.ConstructTtsObject(serverObj)
+ttsObject["voice"] := "Piedmont"
+ttsObject["seed"] := 17
+
+ttsObject["input"] := "Never gonna give you up, never gonna let you down."
+destination := A_ScriptDir "\You know the rules.wav"
+loop 100
+    crisp.TTS(serverObj, ttsObject, destination)
