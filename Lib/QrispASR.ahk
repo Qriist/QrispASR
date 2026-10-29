@@ -21,7 +21,9 @@ class QrispASR {
 
         if DirExist(path "\" verMap["version"]) {
             this.crispVersion := verMap["version"]
-            this.crispPath := path "\" this.crispVersion "\crispasr.exe"
+            this.crispDir := path "\" this.crispVersion
+            this.crisp := this.crispDir "\crispasr.exe"
+            this.voiceDir := path "\voices"
             return
         }
 
@@ -40,7 +42,9 @@ class QrispASR {
         FileDelete(zipfile)
 
         this.crispVersion := verMap["version"]
-        this.crispPath := path "\" this.crispVersion "\crispasr.exe"
+        this.crispDir := path "\" this.crispVersion
+        this.crisp := this.crispDir "\crispasr.exe"
+        this.voiceDir := path "\voices"
     }
     DetermineLatestCrisp() {
         retMap := Map()
@@ -66,7 +70,80 @@ class QrispASR {
         }
         return retMap
     }
-    StartServer(server_path) {
+    StartServer(serverObj?, serverUrl?) {
+        serverObj ??= this.ConstructServerObject()
 
+        ;build server cmd
+        cmd := adash.join(serverObj["optArr"], " ")
+
+        ;start server
+        crispUrl := serverObj["url"] ":" serverObj["port"]
+        if !ProcessExist("crispasr.exe")
+            Run(cmd, this.crispDir)
+
+        ;wait for server to get running
+        easy_handle := this.curl.EasyInit()
+        url := crispUrl "/health"
+        this.curl.SetOpt("URL", url, easy_handle)
+
+        loop {
+            this.curl.Sync(easy_handle)
+            httpCode := this.curl.GetLastStatus(easy_handle)
+
+            if a_index > 10000
+                ExitApp
+
+            if !httpCode    ;server not up yet
+                continue
+            ; MsgBox a_index
+            jsonObj := json.Load(this.curl.GetLastBody(, easy_handle))
+            if jsonObj["status"] = "ok"
+                break
+            else
+                ExitApp
+        }
+        this.curl.EasyCleanup(easy_handle)   ;server found, cleanup
+    }
+    ConstructServerObject(backend?, url?, port?, talker_model?, codec_model?) {
+        ;establish defaults
+        backend ??= "qwen3-tts-1.7b-base"
+        url ??= "http://127.0.0.1"
+        port ??= 8080
+        voiceDir := this.voiceDir
+
+        ;instance basic object
+        serverObj := Map(
+            "backend", backend,
+            "url", url,
+            "port", port,
+            "voiceDir", voiceDir,
+            "optArr", optArr := []  ;for CLI construction
+        )
+
+        ;add backend-specific info
+        switch backend {
+            case "qwen3-tts-1.7b-base":
+                optArr.Push(
+                    this.crisp,
+                    "--server",
+                    "--backend " backend,
+                    "-m auto",  ;todo - model config
+                    "--port " port,
+                    "--voice-dir " '"' voiceDir '"'
+                )
+
+            default:
+                return this.GetServerObject()
+        }
+
+        ;Crisp requires a bunch of bypass flags
+        optArr.Push(
+            "--speaker-identity synthetic",
+            "--no-watermark",
+            "--accept-marking-responsibility",
+            "--no-spoken-disclaimer"
+        )
+
+        return serverObj
     }
 }
