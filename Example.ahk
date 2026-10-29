@@ -19,5 +19,5 @@ ttsObject["seed"] := 17
 
 ttsObject["input"] := "Never gonna give you up, never gonna let you down."
 destination := A_ScriptDir "\You know the rules.wav"
-loop 100
-    crisp.TTS(serverObj, ttsObject, destination)
+
+crisp.TTS(serverObj, ttsObject, destination)
