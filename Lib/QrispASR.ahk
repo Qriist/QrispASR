@@ -21,9 +21,10 @@ class QrispASR {
 
         if DirExist(path "\" verMap["version"]) {
             this.crispVersion := verMap["version"]
-            this.crispDir := path "\" this.crispVersion
+            this.crispRoot := path
+            this.crispDir := this.crispRoot "\" this.crispVersion
             this.crisp := this.crispDir "\crispasr.exe"
-            this.voiceDir := path "\voices"
+            this.voiceDir := this.crispRoot "\voices"
             return
         }
 
@@ -41,10 +42,11 @@ class QrispASR {
         DirDelete(path "\temp")
         FileDelete(zipfile)
 
+        this.crispRoot := path
         this.crispVersion := verMap["version"]
-        this.crispDir := path "\" this.crispVersion
+        this.crispDir := this.crispRoot "\" this.crispVersion
         this.crisp := this.crispDir "\crispasr.exe"
-        this.voiceDir := path "\voices"
+        this.voiceDir := this.crispRoot "\voices"
     }
     DetermineLatestCrisp() {
         retMap := Map()
@@ -107,6 +109,7 @@ class QrispASR {
                 ExitApp
         }
         this.curl.EasyCleanup(easy_handle)   ;server found, cleanup
+        return serverObj
     }
     ConstructServerObject(backend?, url?, port?, talker_model?, codec_model?) {
         ;establish defaults
@@ -149,5 +152,45 @@ class QrispASR {
         )
 
         return serverObj
+    }
+    SubmitVoice(serverObj, audioPath, audioName, transcriptPath?, overwrite?) {
+        if !DirExist(this.voiceDir)
+            DirCreate(this.voiceDir)
+
+        ;prepare audio
+        tempPath := this.crispRoot "\" A_NowUTC ".wav"
+
+        af := "adelay=1000:all=1,apad=pad_dur=1"    ;padding filter
+        cmd := adash.join([
+            "ffmpeg",
+            "-i " '"' audioPath '"',
+            ; "-ac 1",  ;force mono, not sure if needed so disabled
+            "-af " '"' af '"',
+            "-ar 24000",    ;auto-force to 24khz
+            "-c:a pcm_s16le",
+            ; "-c:a pcm_s24le",
+            ; "-c:a pcm_s32le",
+            '"' tempPath '"'
+        ], " ")
+        RunWait(cmd, this.crispDir)
+        ; msgbox A_Clipboard := cmd
+        ;do the actual submit
+        easy_handle := this.curl.EasyInit()
+        mime_handle := this.curl.MimeInit(easy_handle)
+
+        voicePart := this.curl.AttachMimePart("voice", FileOpen(tempPath, "r"), mime_handle)
+        this.curl.AttachMimePart("name", audioName, mime_handle)
+        this.curl.AttachMimePart("consent_attestation", "I have the speaker's consent", mime_handle)
+        if IsSet(transcriptPath?)
+            this.curl.AttachMimePart("transcript", FileRead(transcriptPath, "UTF-8"), mime_handle)
+
+        url := serverObj["url"] ":" serverObj["port"] "/v1/voices" (IsSet(overwrite?) ? "?force=true" : "")
+        this.curl.SetOpt("URL", url, easy_handle)
+        this.curl.Sync(easy_handle)
+        ; MsgBox this.curl.GetLastStatus(easy_handle)
+        ; msgbox this.curl.GetLastBody(, easy_handle)
+        this.curl.MimeCleanup(mime_handle)
+        this.curl.EasyCleanup(easy_handle)
+        FileDelete(tempPath)
     }
 }
