@@ -84,8 +84,10 @@ class QrispASR {
 
         ;start server
         crispUrl := serverObj["url"] ":" serverObj["port"]
-        if !ProcessExist("crispasr.exe")
+        if !ProcessExist("crispasr.exe") {
+            ; MsgBox A_Clipboard := cmd
             Run(cmd, this.crispDir)
+        }
 
         ;wait for server to get running
         easy_handle := this.curl.EasyInit()
@@ -96,17 +98,19 @@ class QrispASR {
             this.curl.Sync(easy_handle)
             httpCode := this.curl.GetLastStatus(easy_handle)
 
-            if a_index > 10000
-                ExitApp
+            ; if a_index > 10000
+            ;     ExitApp
 
             if !httpCode    ;server not up yet
                 continue
+
+            ; msgbox httpCode
             ; MsgBox a_index
             jsonObj := json.Load(this.curl.GetLastBody(, easy_handle))
             if jsonObj["status"] = "ok"
                 break
-            else
-                ExitApp
+            ; else
+            ;     ExitApp
         }
         this.curl.EasyCleanup(easy_handle)   ;server found, cleanup
         return serverObj
@@ -131,21 +135,94 @@ class QrispASR {
         ;add backend-specific info
         switch backend {
             case "qwen3-tts-1.7b-base":
+                serverObj["model"] := talker_model ??= "qwen3-tts-12hz-1.7b-base-f16.gguf"
+                serverObj["codec_model"] := codec_model ??= "qwen3-tts-tokenizer-12hz.gguf"
                 optArr.Push(
                     this.crisp,
                     "--server",
                     "--backend " backend,
-                    "-m auto",  ;todo - model config
+                    "-m " talker_model,
+                    "--codec-model " codec_model,
                     "--port " port,
                     "--voice-dir " '"' voiceDir '"'
                 )
 
+            case "voxcpm2-tts":
+                serverObj["model"] := talker_model ??= "auto"
+                optArr.Push(
+                    this.crisp,
+                    "--server",
+                    "--backend " backend,
+                    "-m " talker_model,
+                    "--port " port
+                )
+
+            case "indextts":
+                serverObj["model"] := talker_model ??= "auto"
+                optArr.Push(
+                    this.crisp,
+                    "--server",
+                    "--backend " backend,
+                    "-m " talker_model,
+                    "--port " port,
+                    "--voice-dir " '"' voiceDir '"',
+                    "--no-gpu"
+                )
+
+            case "cosyvoice3-tts", "cosyvoice3-tts-rl":
+                serverObj["model"] := talker_model ??= "auto"
+                optArr.Push(
+                    this.crisp,
+                    "--server",
+                    "--backend " backend,
+                    "-m " talker_model,
+                    "--voice-dir " '"' voiceDir '"',
+                    "--port " port,
+                    "--i-have-rights"
+                )
+
+            case "tada":
+                serverObj["model"] := talker_model ??= "auto"
+                optArr.Push(
+                    this.crisp,
+                    "--server",
+                    "--backend " backend,
+                    "-m " talker_model,
+                    "--accept-license llama3.2",
+                    "-l en",
+                    "--port " port,
+                    "--voice-dir " '"' voiceDir '"'
+                )
+            case "bt2-tts":
+                serverObj["model"] := talker_model ??= "auto"
+                optArr.Push(
+                    this.crisp,
+                    "--server",
+                    "--backend " backend,
+                    "-m " talker_model,
+                    "--port " port,
+                    "--voice-dir " '"' voiceDir '"',
+                    "--accept-license other",
+                    "--i-have-rights"
+                )
+            case "pocket-tts":
+                serverObj["model"] := talker_model ??= "auto"
+                optArr.Push(
+                    this.crisp,
+                    "--server",
+                    "--backend " backend,
+                    "-m " talker_model,
+                    "--port " port,
+                    '--voice-dir "' voiceDir '"',
+                    "--accept-license pocket-tts-terms"
+                )
             default:
                 return this.GetServerObject()
         }
 
         ;Crisp requires a bunch of bypass flags
         optArr.Push(
+            "--i-have-rights",
             "--speaker-identity synthetic",
             "--no-watermark",
             "--accept-marking-responsibility",
@@ -202,6 +279,7 @@ class QrispASR {
         url := serverObj["url"] ":" serverObj["port"] "/v1/audio/speech"
         this.curl.SetOpt("URL", url, easy_handle)
 
+        ; Peep(ttsObj)
         this.curl.SetPost(ttsObj, easy_handle)
         this.curl.WriteToFile(destination, easy_handle)
 
@@ -259,13 +337,127 @@ class QrispASR {
                     ; "phonemes", "", ; Kokoro/Piper only
                     "pad_silence_ms", (!IsSet(extended?) ? unset : 0),
                     "stream", JSON.False,
-                    ; "speed", (!IsSet(extended?) ? unset : 1.0),
+                    "speed", (!IsSet(extended?) ? unset : 1.0),
                     ; "duration", 0, ; OmniVoice only
                     "response_format", "wav",
                     "consent_attestation", "I have the speaker's consent",
                     ; "ref_text", "", ; TADA cloning reference transcript
                     "language", "English",
                     ; "source_lang", "", ; CosyVoice3 only
+                    "speaker_identity", "synthetic",
+                    "spoken_disclaimer", JSON.False,
+                    "marking_attestation", (!IsSet(extended?) ? unset : "I will disclose this is AI-generated")
+                )
+            case "voxcpm2-tts":
+                retObj := Map(
+                    "input", Null(),
+                    "model", serverObj["backend"],
+                    "voice", Null(),
+                    "seed", 0,
+                    "temperature", (!IsSet(extended?) ? unset : 0.0),
+                    "max_new_tokens", (!IsSet(extended?) ? unset : 0),
+                    "frequency_penalty", (!IsSet(extended?) ? unset : 0.0),
+                    "pad_silence_ms", (!IsSet(extended?) ? unset : 0),
+                    "stream", JSON.False,
+                    "speed", (!IsSet(extended?) ? unset : 1.0),
+                    "response_format", "wav",
+                    "consent_attestation", "I have the speaker's consent",
+                    "speaker_identity", "synthetic",
+                    "spoken_disclaimer", JSON.False,
+                    "marking_attestation", (!IsSet(extended?) ? unset : "I will disclose this is AI-generated")
+                )
+            case "bt2-tts":
+                retObj := Map(
+                    "input", Null(),
+                    "model", serverObj["backend"],
+                    "voice", Null(),
+                    "ref_text", "", ; Reference transcript; can be supplied per request
+                    "instructions", "", ; Optional voice direction / design
+                    "cfg_scale", 1.0, ; Breeze default; 4 strengthens instruction-following
+                    "seed", 0,
+                    "temperature", (!IsSet(extended?) ? unset : 0.0),
+                    "top_p", (!IsSet(extended?) ? unset : 0.0),
+                    "top_k", (!IsSet(extended?) ? unset : 0),
+                    "repetition_penalty", (!IsSet(extended?) ? unset : 0.0),
+                    "stream", JSON.False,
+                    "speed", (!IsSet(extended?) ? unset : 1.0),
+                    "response_format", "wav",
+                    "consent_attestation", "I have the speaker's consent",
+                    "speaker_identity", "synthetic",
+                    "spoken_disclaimer", JSON.False,
+                    "marking_attestation", (!IsSet(extended?) ? unset : "I will disclose this is AI-generated")
+                )
+            case "indextts":
+                retObj := Map(
+                    "input", Null(),
+                    "model", serverObj["backend"],
+                    "voice", Null(),
+                    ; "seed", 0,
+                    ; IndexTTS uses beam search by default; seed has limited practical effect.
+                    ; "max_new_tokens", (!IsSet(extended?) ? unset : 0),
+                    ; "pad_silence_ms", (!IsSet(extended?) ? unset : 0),
+                    ; "stream", JSON.False,
+                    ; "speed", (!IsSet(extended?) ? unset : 1.0),
+                    "response_format", "wav",
+                    "consent_attestation", "I have the speaker's consent",
+                    "speaker_identity", "synthetic",
+                    "spoken_disclaimer", JSON.False,
+                    "marking_attestation", (!IsSet(extended?) ? unset : "I will disclose this is AI-generated")
+                )
+
+            case "cosyvoice3-tts", "cosyvoice3-tts-rl":
+                retObj := Map(
+                    "input", Null(),
+                    "model", serverObj["backend"],
+                    "voice", Null(),
+                    "max_new_tokens", (!IsSet(extended?) ? unset : 0),
+                    "pad_silence_ms", (!IsSet(extended?) ? unset : 0),
+                    "stream", JSON.False,
+                    "speed", (!IsSet(extended?) ? unset : 1.0),
+                    "response_format", "wav",
+                    "consent_attestation", "I have the speaker's consent",
+                    "language", "English",
+                    ; Only needed when cloning across languages.
+                    "source_lang", (!IsSet(extended?) ? unset : ""),
+                    "speaker_identity", "synthetic",
+                    "spoken_disclaimer", JSON.False,
+                    "marking_attestation", (!IsSet(extended?) ? unset : "I will disclose this is AI-generated")
+                )
+            case "tada-3b-ml", "tada":
+                EnvSet("CRISPASR_TADA_WAV_CLONE", 1)
+                retObj := Map(
+                    "input", Null(),
+                    "model", serverObj["backend"],
+                    "voice", Null(),
+                    "seed", 0,
+                    "temperature", (!IsSet(extended?) ? unset : 0.6),
+                    "top_p", (!IsSet(extended?) ? unset : 0.9),
+                    "top_k", (!IsSet(extended?) ? unset : 0),
+                    "repetition_penalty", (!IsSet(extended?) ? unset : 1.1),
+                    "do_sample", (!IsSet(extended?) ? unset : JSON.True),
+                    "num_candidates", (!IsSet(extended?) ? unset : 4),
+                    "num_steps", (!IsSet(extended?) ? unset : 10),
+                    "cfg_scale", (!IsSet(extended?) ? unset : 1.6),
+                    "noise_temp", (!IsSet(extended?) ? unset : 0.9),
+                    "pad_silence_ms", (!IsSet(extended?) ? unset : 0),
+                    "stream", JSON.False,
+                    "response_format", "wav",
+                    "consent_attestation", "I have the speaker's consent",
+                    "language", "English",
+                    "speaker_identity", "synthetic",
+                    "spoken_disclaimer", JSON.False,
+                    "marking_attestation", (!IsSet(extended?) ? unset : "I will disclose this is AI-generated")
+                )
+            case "pocket-tts":
+                retObj := Map(
+                    "input", Null(),
+                    "model", serverObj["backend"],
+                    "voice", Null(),
+                    "seed", 0,
+                    "stream", JSON.False,
+                    "speed", 1.0,
+                    "response_format", "wav",
+                    "consent_attestation", "I have the speaker's consent",
                     "speaker_identity", "synthetic",
                     "spoken_disclaimer", JSON.False,
                     "marking_attestation", (!IsSet(extended?) ? unset : "I will disclose this is AI-generated")
